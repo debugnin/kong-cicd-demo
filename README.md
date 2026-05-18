@@ -1,53 +1,73 @@
 # kong-cicd-demo
 
-End-to-end CI/CD demo for Kong gateway configuration on Kubernetes, using:
+A CRD-only source-of-truth repo for a Kong gateway managed by the **Kong
+Gateway Operator** with **Konnect (AU region)** as the control plane. Argo CD
+syncs the manifests; the operator reconciles them against Konnect.
 
-- **Kong Gateway Operator** managing the DataPlane lifecycle
-- **Konnect** (AU region) as the control plane, provisioned by **Terraform**
-- **Argo CD** pulling manifests from this Git repo
-- **GitHub Actions** for PR validation (fast lane) and full E2E on merge (kind + Argo + k6)
-
-Two-tier ownership model in one repo: **platform** (gateway, GatewayClass,
-Konnect wiring) and **app** (HTTPRoute, plugins, consumer). Three layers of
-separation enforcement: CODEOWNERS, Argo `AppProject` whitelists, optional
-Application impersonation.
+Cluster, Kong Gateway Operator, Argo CD, and the Konnect token Secret are all
+provisioned **outside this repo**.
 
 ## Quickstart
 
-1. Fork this folder into a public GitHub repo.
-2. Replace `debugnin` everywhere:
+1. Fork this repo. Replace `debugnin` with your GitHub org/user:
    ```bash
    grep -rl 'debugnin' . | xargs sed -i '' "s|debugnin|your-gh-org|g"
    ```
-3. `gh secret set KONNECT_TOKEN -b "kpat_..."`
-4. Push to `main`. Watch `.github/workflows/main.yaml` in the Actions tab.
 
-Full instructions and local-development flow in [`docs/runbook.md`](docs/runbook.md).
-Architecture detail in [`docs/architecture.md`](docs/architecture.md).
+2. Install the prerequisites in your cluster (see [`docs/runbook.md`](docs/runbook.md)):
+   - Kong Gateway Operator (Helm)
+   - Argo CD — use the workspace's [`../helm/deploy-argocd.sh`](../helm/deploy-argocd.sh)
+   - Gateway API CRDs
 
-## Pipelines
+3. Create the Konnect token Secret:
+   ```bash
+   kubectl create namespace kong
+   kubectl -n kong create secret generic konnect-token \
+     --from-literal=token="kpat_..."
+   ```
 
-| Workflow | Trigger | What it does | Duration |
-|---|---|---|---|
-| [`pr.yaml`](.github/workflows/pr.yaml) | PR | `kubeconform` + `kustomize build` + `conftest` | ~1 min |
-| [`main.yaml`](.github/workflows/main.yaml) | push to main, manual | Terraform → kind → Operator → Argo CD → smoke + k6 → destroy | ~10 min |
+4. Apply Argo CD configs:
+   ```bash
+   kubectl apply -f argocd/projects/
+   kubectl apply -f argocd/app-platform.yaml -f argocd/app-httpbin.yaml
+   ```
 
-## Folder map
+5. Argo CD pulls from `main`, the operator creates the Konnect CP
+   `kong-cicd-demo`, and the gateway comes up.
+
+## What's in here
 
 ```
-.github/         workflows + CODEOWNERS (Layer-1 control)
-infra/           Terraform (Konnect CP) + kind config + helm bootstrap
-argocd/          AppProjects (Layer-2) + Applications + optional RBAC (Layer-3)
+.github/         CODEOWNERS + pr.yaml (only CI workflow)
+argocd/          AppProjects + Applications + optional RBAC
 manifests/
-  platform/      platform-tier (Argo app: platform)
-  apps/httpbin/  app-tier (Argo app: httpbin)
-policies/        Conftest rules (CI-time enforcement)
-tests/           smoke.sh + k6-functional.js
-docs/            architecture, runbook
+  platform/      KonnectGatewayControlPlane + Gateway + Konnect wiring
+  apps/httpbin/  HTTPRoute + plugins + consumer + upstream service
+policies/        Conftest rules enforced in PR CI
+tests/           Manual-run smoke + k6 functional tests
+docs/            Architecture + runbook
 ```
 
-## What this is not
+## What's NOT in here
 
-A production reference. Multi-env overlays, External Secrets, drift detection,
-TLS, and promotion automation are deliberately excluded — see
-[`docs/architecture.md`](docs/architecture.md) "Non-goals" for the upgrade path.
+| Externalised | Where it lives |
+|---|---|
+| Kubernetes cluster | Provided by you |
+| Kong Gateway Operator install | `helm install` once per cluster |
+| Argo CD install | `../helm/deploy-argocd.sh` |
+| Konnect token Secret | `kubectl create secret` once, or ESO |
+
+See [`docs/architecture.md`](docs/architecture.md) for the full picture and
+[`docs/runbook.md`](docs/runbook.md) for operating instructions.
+
+## CI
+
+One workflow, [`.github/workflows/pr.yaml`](.github/workflows/pr.yaml):
+
+| Job | Tool | Catches |
+|---|---|---|
+| `schema` | kubeconform | Bad fields/types in manifests |
+| `render` | kustomize | Overlay errors |
+| `policy` | conftest | Wildcard hosts, missing timeouts, non-allowlisted plugins |
+
+No `main` workflow. Deployment is GitOps — merge to `main`, Argo CD pulls.

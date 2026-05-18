@@ -9,17 +9,9 @@ spec:
       - kind: KonnectExtension
         group: konnect.konghq.com
         name: konnect-extension
-    network:
-      services:
-        ingress:
-          # Pin the proxy Service to NodePort 30080 so kind's extraPortMappings
-          # (host 8080 -> container 30080) exposes the gateway on localhost:8080.
-          type: NodePort
-          ports:
-            - name: http
-              port: 80
-              targetPort: 8000
-              nodePort: 30080
+    # Service defaults to LoadBalancer — works on EKS/GKE/AKS out of the box.
+    # For a local kind cluster, override this overlay to switch to NodePort
+    # with a fixed nodePort and add a matching extraPortMappings to kind.
     deployment:
       podTemplateSpec:
         spec:

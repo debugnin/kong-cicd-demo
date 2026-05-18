@@ -1,160 +1,192 @@
 # Runbook
 
-How to fork, configure, run, and debug `kong-cicd-demo`.
+How to install the external prerequisites, point them at this repo, and apply.
+This repo contains **only Kong CRDs** — cluster, operator, Argo CD, and the
+Konnect token Secret are all managed outside.
 
 ## Prerequisites
 
-| Tool | Version | Where used |
+| Component | Where | Version |
 |---|---|---|
-| `gh` or GitHub web | — | Forking, secret setup |
-| Konnect account | AU region | CP creation |
-| `KONNECT_TOKEN` | PAT or service-account token with CP create/delete | TF + KIC |
+| Kubernetes cluster | Provided by you | ≥ 1.30 |
+| Kong Gateway Operator | Installed in the cluster | ≥ 1.4 (CRD: `KonnectGatewayControlPlane`) |
+| Argo CD | Installed in the cluster | ≥ 2.13 |
+| Konnect account | AU region | — |
+| `KONNECT_TOKEN` | PAT or service-account token with CP create/delete |  |
 
-For local development:
+## One-time setup (do this once per cluster)
 
-| Tool | Version |
-|---|---|
-| Terraform | ≥ 1.6 |
-| kubectl | ≥ 1.30 |
-| Helm | ≥ 3.13 |
-| kind | ≥ 0.22 |
-| kustomize | ≥ 5.0 |
-| conftest | ≥ 0.55 |
-| kubeconform | ≥ 0.6 |
-| k6 | ≥ 0.50 |
+### 1. Cluster
 
-## One-time fork setup
-
-1. **Fork or copy** this folder into a public GitHub repo. The demo assumes
-   public so Argo CD can clone without auth; for private, see "Private repo"
-   below.
-
-2. **Replace `debugnin`** in the following files:
-   - `argocd/projects/platform.yaml`
-   - `argocd/projects/app-httpbin.yaml`
-   - `argocd/app-platform.yaml`
-   - `argocd/app-httpbin.yaml`
-   - `.github/CODEOWNERS`
-
-   ```bash
-   grep -rl 'debugnin' . | xargs sed -i '' "s|debugnin|your-gh-org|g"
-   ```
-
-3. **Add the GitHub Actions secret:**
-   ```bash
-   gh secret set KONNECT_TOKEN -b "kpat_..."
-   ```
-
-4. **Create platform-team and app-team-a GitHub teams** (or rename the slugs
-   in `.github/CODEOWNERS` to whatever you have).
-
-5. **Branch protection on `main`:**
-   - Require pull request before merging
-   - Require approvals: 1
-   - Require review from Code Owners
-   - Require status checks: `schema`, `render`, `policy` (from `pr.yaml`)
-
-## Running locally (no GitHub)
-
-You can run the entire `main.yaml` pipeline on your laptop. Useful for
-iterating without burning CI minutes.
+Provide your own — kind for local, EKS/AKS/GKE/on-prem for real. This repo
+does not opine.
 
 ```bash
-export KONNECT_TOKEN="kpat_..."
-
-# 1. Create the Konnect CP
-cd infra/terraform
-terraform init
-terraform apply -auto-approve
-cd ../..
-
-# 2. Create kind cluster
-kind create cluster --config infra/kind-config.yaml --name kong-cicd-demo
-
-# 3. Bootstrap
-bash infra/bootstrap.sh
-
-# 4. Konnect token Secret
-kubectl create namespace kong --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n kong create secret generic konnect-token \
-  --from-literal=token="${KONNECT_TOKEN}"
-
-# 5. Apply Argo CD configs
-#    NOTE: edit argocd/app-*.yaml to point at your fork first, OR replace
-#    repoURL with a local path (see "Private/local repo" below).
-kubectl apply -f argocd/projects/
-kubectl apply -f argocd/app-platform.yaml -f argocd/app-httpbin.yaml
-
-# 6. Wait
-kubectl -n kong wait gateway/kong --for=condition=Programmed=True --timeout=300s
-
-# 7. Tests
-GATEWAY_URL=http://localhost:8080 bash tests/smoke.sh
-GATEWAY_URL=http://localhost:8080 k6 run tests/k6-functional.js
-
-# 8. Cleanup
-kind delete cluster --name kong-cicd-demo
-cd infra/terraform && terraform destroy -auto-approve
+# Local kind example (run from anywhere outside this repo):
+kind create cluster --name kong-cicd-demo
 ```
 
-## Debugging failed runs
+### 2. Kong Gateway Operator
+
+```bash
+helm repo add kong https://charts.konghq.com
+helm repo update
+helm install kong-gateway-operator kong/gateway-operator \
+  --namespace kong-system --create-namespace \
+  --wait
+```
+
+Also install Gateway API CRDs if your cluster doesn't have them:
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+```
+
+### 3. Argo CD
+
+Use the workspace-level script:
+
+```bash
+cd ../helm
+./deploy-argocd.sh
+```
+
+### 4. Konnect token Secret
+
+```bash
+kubectl create namespace kong
+kubectl -n kong create secret generic konnect-token \
+  --from-literal=token="kpat_..."
+```
+
+Production: replace this with an `ExternalSecret` from your cloud's Secret
+Manager / Vault. Not committed to this repo.
+
+### 5. Argo CD project + Applications
+
+```bash
+# From the root of this repo:
+kubectl apply -f argocd/projects/
+kubectl apply -f argocd/app-platform.yaml -f argocd/app-httpbin.yaml
+```
+
+Argo CD will now pull from `https://github.com/debugnin/kong-cicd-demo@main`
+and create the Konnect control plane, gateway, route, and plugins. The Kong
+Gateway Operator reconciles them; the Konnect CP `kong-cicd-demo` appears in
+the AU region's Konnect UI.
+
+## Day-2 operation
+
+### Adding a route or plugin
+
+1. Open a PR that adds/edits files under `manifests/apps/<app>/`.
+2. PR CI runs `pr.yaml` (kubeconform + kustomize + conftest).
+3. After approval and merge, Argo CD picks up the change on its next reconcile
+   (default 3 min, or trigger immediately via Argo's webhook).
+4. KIC propagates the change to Konnect; the data plane picks it up.
+
+### Adding a new app team
+
+1. Add `manifests/apps/<team>/` with kustomization + manifests.
+2. Add `argocd/projects/app-<team>.yaml` (copy `app-httpbin.yaml`, adjust
+   namespace).
+3. Add `argocd/app-<team>.yaml` for the new Application.
+4. Update `.github/CODEOWNERS` to give that team approval rights on their path.
+
+## One-off verification
+
+The tests under `tests/` are runnable manually — they're **not** wired into CI
+because this repo has no cluster access. Use them locally or in a separate
+post-deploy job.
+
+```bash
+# Smoke
+GATEWAY_URL=http://<gateway-host> bash tests/smoke.sh
+
+# Functional
+GATEWAY_URL=http://<gateway-host> API_KEY=demo-key-12345 \
+  k6 run tests/k6-functional.js
+```
+
+`<gateway-host>` is whatever exposes the `kong/kong` Gateway — a real
+LoadBalancer IP, a kind port mapping, or `kubectl port-forward` for ad-hoc
+checks.
+
+## Debugging
+
+### `KonnectGatewayControlPlane` stuck
+
+```bash
+kubectl -n kong describe konnectgatewaycontrolplane kong-cicd-demo
+kubectl -n kong logs -l app.kubernetes.io/name=gateway-operator --tail=200
+```
+
+Most common causes:
+- `konnect-token` Secret missing or contains a stale token
+- `KonnectAPIAuthConfiguration.serverURL` doesn't match the region your token
+  belongs to
+- Token lacks `Control Planes: Admin` Konnect role
 
 ### Gateway never reaches `Programmed=True`
 
 ```bash
 kubectl -n kong describe gateway kong
 kubectl -n kong get dataplane,controlplane -o wide
-kubectl -n kong get pods -l app.kubernetes.io/managed-by=gateway-operator
-kubectl -n kong logs -l app.kubernetes.io/managed-by=gateway-operator --tail=200
 ```
 
 Likely causes:
-- `KONNECT_TOKEN` secret missing or wrong → `konnect-api-auth` will error
-- Konnect CP `kong-cicd-demo` doesn't exist → Terraform apply failed silently
-- Operator image pull failure → check kind node has internet
+- `KonnectGatewayControlPlane` not yet `Programmed` → wait
+- `KonnectExtension` references a CP name that doesn't match the
+  `KonnectGatewayControlPlane.metadata.name`
+- Operator version too old (no `KonnectGatewayControlPlane` CRD) — upgrade
 
 ### Argo CD application stuck `OutOfSync`
 
 ```bash
 kubectl -n argocd get applications
-argocd app get platform --core
-argocd app get httpbin --core
+argocd app get platform
+argocd app get httpbin
 ```
 
-Most common: `debugnin` placeholder not replaced, so Argo can't reach the repo.
+Most common: `repoURL` typo, repo private and Argo lacks credentials, or
+branch other than `main` (check `targetRevision`).
 
-### k6 test 3 (rate-limit) flaky
+### Rate-limit test flaky
 
-Rate-limit policy: `local`. In a single-replica DataPlane this is reliable.
-If you scale the DP to >1 replica, switch the plugin policy to `cluster` (with
-a Postgres DB) or `redis`, or accept the flakiness.
+`KongPlugin` `rate-limit-status` uses `policy: local`. In a multi-replica
+DataPlane each replica has its own counter, so 5/min becomes 5 × N/min across
+the cluster. For deterministic enforcement at scale, switch to `policy:
+redis` or `policy: cluster` (Postgres) and configure the backing store.
 
-### Tests pass locally but Konnect UI shows nothing
+## Reverting a bad change
 
-The data plane sends config to Konnect asynchronously after Argo syncs.
-Wait 30–60 seconds, then refresh the Konnect UI. If still empty, check
-DataPlane pod logs for Konnect connectivity errors.
+GitOps revert is `git revert <commit> && git push`. Argo CD picks up the
+revert on its next reconcile and reapplies the previous state. No special
+playbook needed.
 
-## Private repo variant (not built — sketch)
+To temporarily pause Argo CD reconciliation on one Application:
 
-If you can't make the repo public:
+```bash
+kubectl -n argocd patch application httpbin \
+  --type merge \
+  -p '{"spec":{"syncPolicy":{"automated":null}}}'
+```
 
-1. Create a GitHub deploy key for the repo (read-only).
-2. Add it as a Kubernetes secret in `argocd` namespace:
-   ```bash
-   kubectl -n argocd create secret generic repo-creds \
-     --from-file=sshPrivateKey=/path/to/key
-   kubectl -n argocd label secret repo-creds \
-     argocd.argoproj.io/secret-type=repository
-   ```
-3. Switch all `argocd/app-*.yaml` `repoURL:` values to `git@github.com:...`.
-4. Argo CD will pick the credentials up automatically.
+Re-enable by restoring the `automated` block from `argocd/app-httpbin.yaml`.
 
-## Modifying the demo
+## Forking for your own org
 
-| Want to | Change |
-|---|---|
-| Different upstream service | Edit `manifests/apps/httpbin/deployment.yaml` + `service.yaml`; update `httproute.yaml` paths |
-| Different plugin | Add new `KongPlugin` YAML; append to HTTPRoute annotation; add plugin name to `policies/kong.rego` allowlist (or accept the policy denial) |
-| Different region | `infra/terraform/variables.tf` `konnect_server_url` + `manifests/platform/konnect-api-auth.yaml` `serverURL` |
-| Multiple environments | Add `manifests/platform/envs/<env>/` kustomize overlays and one Argo `Application` per env (or use an `ApplicationSet`) |
+```bash
+# 1. Fork or copy the repo into your GitHub org.
+# 2. Replace 'debugnin' with your org/user:
+grep -rl 'debugnin' . | xargs sed -i '' "s|debugnin|your-gh-org|g"
+
+# 3. Adjust the team slugs in .github/CODEOWNERS to teams that exist in your
+#    org, or replace them with @username references.
+
+# 4. Set a branch protection rule on main:
+#    - Require pull request before merging
+#    - Require approvals: 1
+#    - Require review from Code Owners
+#    - Require status checks: schema, render, policy (from pr.yaml)
+```

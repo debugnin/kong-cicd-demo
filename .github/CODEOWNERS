@@ -14,7 +14,6 @@
 # Platform tier — ONLY the platform team may approve changes here.
 /manifests/platform/         @debugnin/platform-team
 /argocd/                     @debugnin/platform-team
-/infra/                      @debugnin/platform-team
 /policies/                   @debugnin/platform-team
 /.github/workflows/          @debugnin/platform-team
 /.github/CODEOWNERS          @debugnin/platform-team

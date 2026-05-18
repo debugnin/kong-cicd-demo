@@ -9,7 +9,9 @@ spec:
       ref:
         type: konnectNamespacedRef
         konnectNamespacedRef:
-          # Must match the CP name created by Terraform (infra/terraform/main.tf).
+          # Refers to the KonnectGatewayControlPlane CR declared in
+          # konnect-controlplane.yaml (same namespace). The operator
+          # reconciles that CR by creating/updating the CP in Konnect.
           name: kong-cicd-demo
   clientAuth:
     certificateSecret:

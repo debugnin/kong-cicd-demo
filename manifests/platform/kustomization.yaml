@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - konnect-api-auth.yaml
+  - konnect-controlplane.yaml
   - konnect-extension.yaml
   - gatewayclass.yaml
   - gatewayconfiguration.yaml
