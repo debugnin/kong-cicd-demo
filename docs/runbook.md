@@ -9,8 +9,9 @@ Konnect token Secret are all managed outside.
 | Component | Where | Version |
 |---|---|---|
 | Kubernetes cluster | Provided by you | ≥ 1.30 |
-| Kong Gateway Operator | Installed in the cluster | ≥ 1.4 (CRD: `KonnectGatewayControlPlane`) |
-| Argo CD | Installed in the cluster | ≥ 2.13 |
+| Kong Operator (chart `kong/kong-operator`) | Installed in the cluster | ≥ 2.1 |
+| Gateway API CRDs | Installed in the cluster | ≥ v1.4.1 |
+| Argo CD | Installed in the cluster | ≥ v3.4 (chart ≥ 9.5) |
 | Konnect account | AU region | — |
 | `KONNECT_TOKEN` | PAT or service-account token with CP create/delete |  |
 
@@ -26,21 +27,24 @@ does not opine.
 kind create cluster --name kong-cicd-demo
 ```
 
-### 2. Kong Gateway Operator
+### 2. Kong Operator
+
+Use the workspace-level script (matches
+[Kong's official install guide](https://developer.konghq.com/operator/get-started/gateway-api/install/)):
 
 ```bash
-helm repo add kong https://charts.konghq.com
-helm repo update
-helm install kong-gateway-operator kong/gateway-operator \
-  --namespace kong-system --create-namespace \
-  --wait
+cd ../helm
+./deploy-kong-gateway-operator.sh
 ```
 
-Also install Gateway API CRDs if your cluster doesn't have them:
+The script installs the Gateway API CRDs (`v1.4.1`, server-side apply) and the
+`kong/kong-operator` Helm chart (`2.1`) into namespace `kong-system`, with
+`ENABLE_CONTROLLER_KONNECT=true` so the operator reconciles
+`KonnectGatewayControlPlane` / `KonnectExtension` /
+`KonnectAPIAuthConfiguration` CRs.
 
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
-```
+Run `./deploy-kong-gateway-operator.sh --help` for flag overrides
+(version pin, on-prem mode, cert-manager hook).
 
 ### 3. Argo CD
 

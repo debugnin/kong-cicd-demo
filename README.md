@@ -1,10 +1,10 @@
 # kong-cicd-demo
 
 A CRD-only source-of-truth repo for a Kong gateway managed by the **Kong
-Gateway Operator** with **Konnect (AU region)** as the control plane. Argo CD
-syncs the manifests; the operator reconciles them against Konnect.
+Operator** with **Konnect (AU region)** as the control plane. Argo CD syncs
+the manifests; the operator reconciles them against Konnect.
 
-Cluster, Kong Gateway Operator, Argo CD, and the Konnect token Secret are all
+Cluster, Kong Operator, Argo CD, and the Konnect token Secret are all
 provisioned **outside this repo**.
 
 ## Quickstart
@@ -15,7 +15,7 @@ provisioned **outside this repo**.
    ```
 
 2. Install the prerequisites in your cluster (see [`docs/runbook.md`](docs/runbook.md)):
-   - Kong Gateway Operator (Helm)
+   - Kong Operator — use [`../helm/deploy-kong-gateway-operator.sh`](../helm/deploy-kong-gateway-operator.sh)
    - Argo CD — use the workspace's [`../helm/deploy-argocd.sh`](../helm/deploy-argocd.sh)
    - Gateway API CRDs
 
@@ -53,7 +53,7 @@ docs/            Architecture + runbook
 | Externalised | Where it lives |
 |---|---|
 | Kubernetes cluster | Provided by you |
-| Kong Gateway Operator install | `helm install` once per cluster |
+| Kong Operator install | `../helm/deploy-kong-gateway-operator.sh` |
 | Argo CD install | `../helm/deploy-argocd.sh` |
 | Konnect token Secret | `kubectl create secret` once, or ESO |
 

@@ -8,7 +8,7 @@ Operator, and Argo CD are deployed and managed **outside this repo** (see
 Every Kong-side object — the Konnect control plane itself, the API-auth
 configuration, the data-plane wiring, the gateway, the routes, the plugins —
 is expressed as a Kubernetes Custom Resource committed to this repo. Argo CD
-syncs the resources into the cluster; the Kong Gateway Operator reconciles
+syncs the resources into the cluster; the Kong Operator reconciles
 them, talking to Konnect via the Konnect API.
 
 ## What lives where
@@ -16,7 +16,7 @@ them, talking to Konnect via the Konnect API.
 | Concern | Where | Notes |
 |---|---|---|
 | Kubernetes cluster | External | Any conformant cluster (kind, EKS, AKS, GKE, on-prem) |
-| Kong Gateway Operator | External | Installed via Helm; required CRDs come with it |
+| Kong Operator | External | Installed via Helm; required CRDs come with it |
 | Argo CD | External | Use `../helm/deploy-argocd.sh` for a one-line install |
 | Konnect token (Secret) | External | Created out-of-band; `KonnectAPIAuthConfiguration` references it |
 | Konnect control plane | **This repo** | `KonnectGatewayControlPlane` CR (declarative) |
@@ -78,7 +78,7 @@ Layer 3 is off by default. See `argocd/rbac/README.md` to turn it on.
             │   GatewayConfiguration         │   │
             │   Gateway                      │   │
             │                                │   │
-            │  Namespace: httpbin            │   │  Kong Gateway Operator
+            │  Namespace: httpbin            │   │  Kong Operator
             │   Deployment / Service         │   │  watches these CRs,
             │   HTTPRoute                    │   │  talks to Konnect API,
             │   KongPlugin (rate-limit, key-auth)  │  reconciles Konnect-side state
@@ -149,7 +149,7 @@ reconciled.
 | Not in repo | Production answer |
 |---|---|
 | Cluster creation | External — Terraform/CF/whatever creates the cluster |
-| Kong Gateway Operator install | External — `helm install kong-gateway-operator` once |
+| Kong Operator install | External — see `../helm/deploy-kong-gateway-operator.sh` |
 | Argo CD install | External — see `../helm/deploy-argocd.sh` |
 | Konnect token provisioning | External — ESO + cloud Secret Manager in prod |
 | Multi-env overlays (dev/stg/prod) | Add `manifests/platform/envs/*` and an `ApplicationSet` |
