@@ -1,0 +1,10 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate-limit-status
+  namespace: httpbin
+plugin: rate-limiting
+config:
+  minute: 5
+  policy: local
+  hide_client_headers: false

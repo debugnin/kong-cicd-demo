@@ -1,0 +1,18 @@
+apiVersion: konnect.konghq.com/v1alpha1
+kind: KonnectExtension
+metadata:
+  name: konnect-extension
+  namespace: kong
+spec:
+  konnect:
+    controlPlane:
+      ref:
+        type: konnectNamespacedRef
+        konnectNamespacedRef:
+          # Must match the CP name created by Terraform (infra/terraform/main.tf).
+          name: kong-cicd-demo
+  clientAuth:
+    certificateSecret:
+      provisioning: Automatic
+  konnectControlPlaneAPIAuthConfiguration:
+    name: konnect-api-auth

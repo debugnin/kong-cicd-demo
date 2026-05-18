@@ -1,0 +1,86 @@
+name: pr
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema:
+    name: kubeconform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -fsSL -o kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf kubeconform.tar.gz
+          sudo install -m 0755 kubeconform /usr/local/bin/
+
+      - name: Schema-check all manifests
+        run: |
+          kubeconform \
+            -strict \
+            -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -skip 'KonnectAPIAuthConfiguration,KonnectExtension,GatewayConfiguration,KongPlugin,KongConsumer,KongConsumerGroup,AppProject,Application' \
+            manifests/
+
+  render:
+    name: kustomize build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kustomize
+        run: |
+          curl -fsSL -o kustomize.tar.gz \
+            https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
+          tar -xzf kustomize.tar.gz
+          sudo install -m 0755 kustomize /usr/local/bin/
+
+      - name: Build platform overlay
+        run: kustomize build manifests/platform
+
+      - name: Build httpbin app overlay
+        run: kustomize build manifests/apps/httpbin
+
+  policy:
+    name: conftest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install conftest
+        run: |
+          curl -fsSL -o conftest.tar.gz \
+            https://github.com/open-policy-agent/conftest/releases/download/v0.55.0/conftest_0.55.0_Linux_x86_64.tar.gz
+          tar -xzf conftest.tar.gz
+          sudo install -m 0755 conftest /usr/local/bin/
+
+      - name: Install kustomize
+        run: |
+          curl -fsSL -o kustomize.tar.gz \
+            https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
+          tar -xzf kustomize.tar.gz
+          sudo install -m 0755 kustomize /usr/local/bin/
+
+      - name: Conftest platform overlay
+        run: |
+          kustomize build manifests/platform | \
+            conftest test --policy policies/ --all-namespaces -
+
+      - name: Conftest httpbin overlay
+        run: |
+          kustomize build manifests/apps/httpbin | \
+            conftest test --policy policies/ --all-namespaces -

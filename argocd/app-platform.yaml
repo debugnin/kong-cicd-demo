@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: kong-cicd-platform
+  source:
+    repoURL: https://github.com/debugnin/kong-cicd-demo
+    targetRevision: main
+    path: manifests/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kong
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m
+  # To enable Layer 3 (impersonation), uncomment after applying argocd/rbac/:
+  # destinationServiceAccount: platform-deployer

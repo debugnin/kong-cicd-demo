@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kong-cicd-platform
+  namespace: argocd
+spec:
+  description: Platform-tier resources (GatewayClass, GatewayConfiguration, Konnect wiring).
+  sourceRepos:
+    # Replace debugnin when forking. Argo CD will refuse Applications from any other repo.
+    - https://github.com/debugnin/kong-cicd-demo
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kong
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: gateway.networking.k8s.io
+      kind: GatewayClass
+  namespaceResourceWhitelist:
+    # Platform tier owns everything inside the kong namespace.
+    - group: "*"
+      kind: "*"

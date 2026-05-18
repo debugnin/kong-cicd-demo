@@ -1,0 +1,67 @@
+# Optional Layer-3 control: per-tier ServiceAccount that Argo CD impersonates
+# when applying app-tier manifests. Enable by uncommenting
+# `destinationServiceAccount: httpbin-deployer` in argocd/app-httpbin.yaml
+# AFTER applying this file.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: httpbin-deployer
+  namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kong-cicd-httpbin-deployer
+rules:
+  # The app tier may create its own namespace and nothing else cluster-scoped.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+    resourceNames: ["httpbin"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kong-cicd-httpbin-deployer
+  namespace: httpbin
+rules:
+  - apiGroups: [""]
+    resources: ["services", "secrets", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["configuration.konghq.com"]
+    resources: ["kongplugins", "kongconsumers", "kongconsumergroups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kong-cicd-httpbin-deployer-ns
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kong-cicd-httpbin-deployer
+subjects:
+  - kind: ServiceAccount
+    name: httpbin-deployer
+    namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kong-cicd-httpbin-deployer
+  namespace: httpbin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kong-cicd-httpbin-deployer
+subjects:
+  - kind: ServiceAccount
+    name: httpbin-deployer
+    namespace: argocd

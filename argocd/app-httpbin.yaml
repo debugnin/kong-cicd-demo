@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: httpbin
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: kong-cicd-app-httpbin
+  source:
+    repoURL: https://github.com/debugnin/kong-cicd-demo
+    targetRevision: main
+    path: manifests/apps/httpbin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: httpbin
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m
+  # To enable Layer 3 (impersonation), uncomment after applying argocd/rbac/:
+  # destinationServiceAccount: httpbin-deployer

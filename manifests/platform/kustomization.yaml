@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - konnect-api-auth.yaml
+  - konnect-extension.yaml
+  - gatewayclass.yaml
+  - gatewayconfiguration.yaml
+  - gateway.yaml

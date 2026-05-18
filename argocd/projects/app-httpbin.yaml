@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kong-cicd-app-httpbin
+  namespace: argocd
+spec:
+  description: App-tier resources for the httpbin demo service.
+  sourceRepos:
+    - https://github.com/debugnin/kong-cicd-demo
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: httpbin
+  clusterResourceWhitelist:
+    # App tier may own its own namespace, but nothing else cluster-scoped.
+    # GatewayClass is deliberately absent: even if a malicious manifest landed
+    # in manifests/apps/httpbin/, this Project would refuse to deploy it.
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: ConfigMap
+    - group: apps
+      kind: Deployment
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: configuration.konghq.com
+      kind: KongPlugin
+    - group: configuration.konghq.com
+      kind: KongConsumer
+    - group: configuration.konghq.com
+      kind: KongConsumerGroup

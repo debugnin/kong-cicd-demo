@@ -1,0 +1,49 @@
+# Optional Layer-3 control: per-tier ServiceAccount that Argo CD impersonates
+# when applying platform-tier manifests. Enable by uncommenting
+# `destinationServiceAccount: platform-deployer` in argocd/app-platform.yaml
+# AFTER applying this file.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-deployer
+  namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kong-cicd-platform-deployer
+rules:
+  # Cluster-scoped kinds the platform tier may create.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gatewayclasses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Everything inside the kong namespace.
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway-operator.konghq.com"]
+    resources: ["gatewayconfigurations"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["konnect.konghq.com"]
+    resources: ["konnectapiauthconfigurations", "konnectextensions"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kong-cicd-platform-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kong-cicd-platform-deployer
+subjects:
+  - kind: ServiceAccount
+    name: platform-deployer
+    namespace: argocd

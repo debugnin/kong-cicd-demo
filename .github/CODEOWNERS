@@ -1,0 +1,20 @@
+# Layer-1 control: PR-time review enforcement.
+#
+# Combine with a branch protection rule on `main`:
+#   "Require review from Code Owners" + "Require approvals: 1"
+# so an app-team PR that touches platform paths cannot merge without a
+# platform-team approval, even though they have repo write access.
+#
+# Replace debugnin with your GitHub org or username and the team slugs with
+# real teams (e.g. @kong-data-action/platform).
+
+# Default — most files in this repo are app-team territory.
+*                            @debugnin/app-team-a
+
+# Platform tier — ONLY the platform team may approve changes here.
+/manifests/platform/         @debugnin/platform-team
+/argocd/                     @debugnin/platform-team
+/infra/                      @debugnin/platform-team
+/policies/                   @debugnin/platform-team
+/.github/workflows/          @debugnin/platform-team
+/.github/CODEOWNERS          @debugnin/platform-team
