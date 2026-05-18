@@ -34,7 +34,7 @@ Use the workspace-level script (matches
 
 ```bash
 cd ../helm
-./deploy-kong-gateway-operator.sh
+./deploy-kong-operator.sh
 ```
 
 The script installs the Gateway API CRDs (`v1.4.1`, server-side apply) and the
@@ -43,7 +43,7 @@ The script installs the Gateway API CRDs (`v1.4.1`, server-side apply) and the
 `KonnectGatewayControlPlane` / `KonnectExtension` /
 `KonnectAPIAuthConfiguration` CRs.
 
-Run `./deploy-kong-gateway-operator.sh --help` for flag overrides
+Run `./deploy-kong-operator.sh --help` for flag overrides
 (version pin, on-prem mode, cert-manager hook).
 
 ### 3. Argo CD

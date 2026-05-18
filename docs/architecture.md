@@ -149,7 +149,7 @@ reconciled.
 | Not in repo | Production answer |
 |---|---|
 | Cluster creation | External — Terraform/CF/whatever creates the cluster |
-| Kong Operator install | External — see `../helm/deploy-kong-gateway-operator.sh` |
+| Kong Operator install | External — see `../helm/deploy-kong-operator.sh` |
 | Argo CD install | External — see `../helm/deploy-argocd.sh` |
 | Konnect token provisioning | External — ESO + cloud Secret Manager in prod |
 | Multi-env overlays (dev/stg/prod) | Add `manifests/platform/envs/*` and an `ApplicationSet` |

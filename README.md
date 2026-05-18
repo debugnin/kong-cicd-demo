@@ -15,7 +15,7 @@ provisioned **outside this repo**.
    ```
 
 2. Install the prerequisites in your cluster (see [`docs/runbook.md`](docs/runbook.md)):
-   - Kong Operator — use [`../helm/deploy-kong-gateway-operator.sh`](../helm/deploy-kong-gateway-operator.sh)
+   - Kong Operator — use [`../helm/deploy-kong-operator.sh`](../helm/deploy-kong-operator.sh)
    - Argo CD — use the workspace's [`../helm/deploy-argocd.sh`](../helm/deploy-argocd.sh)
    - Gateway API CRDs
 
@@ -53,7 +53,7 @@ docs/            Architecture + runbook
 | Externalised | Where it lives |
 |---|---|
 | Kubernetes cluster | Provided by you |
-| Kong Operator install | `../helm/deploy-kong-gateway-operator.sh` |
+| Kong Operator install | `../helm/deploy-kong-operator.sh` |
 | Argo CD install | `../helm/deploy-argocd.sh` |
 | Konnect token Secret | `kubectl create secret` once, or ESO |
 
