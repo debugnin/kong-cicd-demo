@@ -1,4 +1,4 @@
-apiVersion: konnect.konghq.com/v1alpha1
+apiVersion: konnect.konghq.com/v1alpha2
 kind: KonnectExtension
 metadata:
   name: konnect-extension
@@ -10,11 +10,9 @@ spec:
         type: konnectNamespacedRef
         konnectNamespacedRef:
           # Refers to the KonnectGatewayControlPlane CR declared in
-          # konnect-controlplane.yaml (same namespace). The operator
-          # reconciles that CR by creating/updating the CP in Konnect.
+          # konnect-controlplane.yaml (same namespace). The auth ref
+          # lives on that ControlPlane, not on this extension.
           name: kong-cicd-demo
   clientAuth:
     certificateSecret:
       provisioning: Automatic
-  konnectControlPlaneAPIAuthConfiguration:
-    name: konnect-api-auth
