@@ -4,11 +4,11 @@ metadata:
   name: konnect-api-auth
   namespace: kong
 spec:
-  type: token
+  type: secretRef
   # The token value comes from the Kubernetes Secret `konnect-token`,
   # created by the CI workflow from the GitHub Actions secret KONNECT_TOKEN.
-  # The operator reads this secret at reconcile time.
-  tokenSecretRef:
+  # The secret must carry the label `konghq.com/credential=konnect` and
+  # store the token under the `token` key.
+  secretRef:
     name: konnect-token
-    key: token
   serverURL: au.api.konghq.com
