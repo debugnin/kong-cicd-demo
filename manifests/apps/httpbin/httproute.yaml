@@ -9,9 +9,10 @@ metadata:
     konghq.com/plugins: rate-limit-status,key-auth-headers
 spec:
   parentRefs:
-    - name: kong
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: kong
       namespace: kong
-      sectionName: http
   rules:
     - matches:
         - path:
