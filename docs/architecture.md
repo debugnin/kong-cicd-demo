@@ -2,8 +2,8 @@
 
 This repository is the **CRD source of truth** for a Kong gateway running on
 Kubernetes with Konnect (AU region) as the control plane. Cluster, Kong Gateway
-Operator, and Argo CD are deployed and managed **outside this repo** (see
-`../helm/deploy-argocd.sh` in the parent workspace for an Argo CD installer).
+Operator, and Argo CD are deployed and managed **outside the manifests** (see
+`./helm/deploy-argocd.sh` for an Argo CD installer and other deployment scripts).
 
 Every Kong-side object — the Konnect control plane itself, the API-auth
 configuration, the data-plane wiring, the gateway, the routes, the plugins —
@@ -17,10 +17,10 @@ them, talking to Konnect via the Konnect API.
 |---|---|---|
 | Kubernetes cluster | External | Any conformant cluster (kind, EKS, AKS, GKE, on-prem) |
 | Kong Operator | External | Installed via Helm; required CRDs come with it |
-| Argo CD | External | Use `../helm/deploy-argocd.sh` for a one-line install |
+| Argo CD | External | Use `./helm/deploy-argocd.sh` for a one-line install |
 | Konnect token (Secret) | External | Created out-of-band; `KonnectAPIAuthConfiguration` references it |
-| Konnect control plane | **This repo** | `KonnectGatewayControlPlane` CR (declarative) |
-| Gateway + data plane wiring | **This repo** | `Gateway`, `GatewayClass`, `GatewayConfiguration`, `KonnectExtension` |
+| Konnect control plane | **This repo** | Auto-created by `Gateway` via `KonnectGatewayControlPlane` |
+| Gateway + data plane wiring | **This repo** | `Gateway`, `GatewayClass`, `GatewayConfiguration` (auto-creates DataPlane, KonnectExtension) |
 | HTTPRoutes, plugins, consumers | **This repo** | App tier under `manifests/apps/<app>/` |
 | Argo CD `AppProject`s, `Application`s | **This repo** | Defines what Argo CD syncs and where |
 | Conftest policies | **This repo** | Enforced in PR CI |
@@ -97,15 +97,17 @@ Layer 3 is off by default. See `argocd/rbac/README.md` to turn it on.
 Sequence on initial sync:
 
 1. Argo CD applies `manifests/platform/` to namespace `kong`.
-2. Operator sees `KonnectAPIAuthConfiguration` + `KonnectGatewayControlPlane`,
-   calls the Konnect API, creates the control plane `kong-cicd-demo` in Konnect.
-3. Operator reconciles `KonnectExtension`, requests client certificates from
+2. Operator sees `Gateway` + `GatewayConfiguration` (with `konnect.authRef`),
+   auto-creates `KonnectGatewayControlPlane`, calls the Konnect API, creates
+   a control plane in Konnect.
+3. Operator auto-creates `KonnectExtension`, requests client certificates from
    Konnect, stores them in a Kubernetes Secret.
-4. Operator reconciles `Gateway` + `GatewayConfiguration`: creates DataPlane
-   pods, points them at the Konnect CP, opens the proxy listener.
-5. Argo CD applies `manifests/apps/httpbin/`. KIC (running inside the data
-   plane) translates the HTTPRoute + plugins + consumer into Konnect config and
-   pushes them to the CP.
+4. Operator auto-creates `DataPlane` pods (via ownerReferences from Gateway),
+   points them at the Konnect CP, opens the proxy listener.
+5. Argo CD applies `manifests/apps/httpbin/`. In Konnect hybrid mode with
+   `konnect.source: Origin`, Gateway API resources (HTTPRoute) require Kong
+   Ingress Controller for translation. Alternatively, use Kong-native CRDs
+   (KongService, KongRoute) which sync directly.
 6. Konnect propagates the config back down to the data plane via the
    long-lived client cert connection. Traffic starts flowing.
 
@@ -128,11 +130,15 @@ min, or webhook-triggered) does the apply.
 
 ## Konnect token Secret
 
-The `KonnectAPIAuthConfiguration` references a `Secret` named `konnect-token`
-in the `kong` namespace, with key `token`. Creating this Secret is **out of
-scope** for this repo. Pick one of:
+The `KonnectAPIAuthConfiguration` references a `Secret` named `konnect-api-auth`
+in the `kong` namespace, with key `token`. The secret requires labels:
+- `konghq.com/credential: konnect`
+- `konghq.com/secret: "true"`
 
-- **Manual** (demo / dev): `kubectl -n kong create secret generic konnect-token --from-literal=token=kpat_...`
+Creating this Secret is **out of scope** for the manifests. Pick one of:
+
+- **Operator script** (demo / dev): `./helm/deploy-kong-operator.sh --konnect-token kpat_...` (creates secret with labels)
+- **Manual** (demo / dev): See README for manual creation with required labels
 - **External Secrets Operator** (production): an `ExternalSecret` pulls the
   value from your cloud's Secret Manager / Vault and materialises the K8s
   Secret. Recommended for prod.
@@ -140,7 +146,7 @@ scope** for this repo. Pick one of:
   committed to a separate ops repo, decrypted at apply time.
 
 The `kong-cicd-app-httpbin` and `kong-cicd-platform` `AppProject`s do **not**
-include the `konnect-token` Secret in their `namespaceResourceWhitelist`s for
+include the `konnect-api-auth` Secret in their `namespaceResourceWhitelist`s for
 the platform Project — that's deliberate. The Secret is bootstrap, not
 reconciled.
 
@@ -149,8 +155,8 @@ reconciled.
 | Not in repo | Production answer |
 |---|---|
 | Cluster creation | External — Terraform/CF/whatever creates the cluster |
-| Kong Operator install | External — see `../helm/deploy-kong-operator.sh` |
-| Argo CD install | External — see `../helm/deploy-argocd.sh` |
+| Kong Operator install | External — see `./helm/deploy-kong-operator.sh` |
+| Argo CD install | External — see `./helm/deploy-argocd.sh` |
 | Konnect token provisioning | External — ESO + cloud Secret Manager in prod |
 | Multi-env overlays (dev/stg/prod) | Add `manifests/platform/envs/*` and an `ApplicationSet` |
 | Drift detection | `deck gateway dump` cron in a separate ops repo |
@@ -170,15 +176,17 @@ argocd/
   app-platform.yaml                   Application → manifests/platform
   app-httpbin.yaml                    Application → manifests/apps/httpbin
   rbac/                               optional Layer-3 impersonation
+helm/
+  deploy-kong-operator.sh             Install Kong Operator with optional secret creation
+  deploy-argocd.sh                    Install Argo CD
+  deploy-*.sh                         Other infrastructure scripts
 manifests/
   platform/                           platform-team tier (Argo app: platform)
     namespace.yaml
     konnect-api-auth.yaml             KonnectAPIAuthConfiguration → token Secret
-    konnect-controlplane.yaml         KonnectGatewayControlPlane (creates CP in Konnect)
-    konnect-extension.yaml            wires data plane to the CP
-    gatewayclass.yaml
-    gatewayconfiguration.yaml
-    gateway.yaml
+    gatewayclass.yaml                 GatewayClass with Kong Operator controller
+    gatewayconfiguration.yaml         Gateway config with konnect.authRef
+    gateway.yaml                      Gateway (auto-creates CP, Extension, DataPlane)
     kustomization.yaml
   apps/httpbin/                       app-team tier (Argo app: httpbin)
     namespace.yaml

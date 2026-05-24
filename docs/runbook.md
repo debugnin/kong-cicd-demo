@@ -29,39 +29,55 @@ kind create cluster --name kong-cicd-demo
 
 ### 2. Kong Operator
 
-Use the workspace-level script (matches
+Use the script in this repo (matches
 [Kong's official install guide](https://developer.konghq.com/operator/get-started/gateway-api/install/)):
 
 ```bash
-cd ../helm
-./deploy-kong-operator.sh
+./helm/deploy-kong-operator.sh
 ```
 
 The script installs the Gateway API CRDs (`v1.4.1`, server-side apply) and the
-`kong/kong-operator` Helm chart (`2.1`) into namespace `kong-system`, with
+`kong/kong-operator` Helm chart into namespace `kong-system`, with
 `ENABLE_CONTROLLER_KONNECT=true` so the operator reconciles
 `KonnectGatewayControlPlane` / `KonnectExtension` /
 `KonnectAPIAuthConfiguration` CRs.
 
-Run `./deploy-kong-operator.sh --help` for flag overrides
-(version pin, on-prem mode, cert-manager hook).
+Optionally create the Konnect secret during install:
+```bash
+./helm/deploy-kong-operator.sh --konnect-token "kpat_..."
+```
+
+Run `./helm/deploy-kong-operator.sh --help` for flag overrides
+(version pin, namespace, cert-manager hook).
 
 ### 3. Argo CD
 
-Use the workspace-level script:
+Use the script in this repo:
 
 ```bash
-cd ../helm
-./deploy-argocd.sh
+./helm/deploy-argocd.sh
 ```
 
 ### 4. Konnect token Secret
 
 ```bash
+# Option 1: Use the operator deployment script
+./helm/deploy-kong-operator.sh --konnect-token "kpat_..."
+
+# Option 2: Create manually with required labels
 kubectl create namespace kong
-kubectl -n kong create secret generic konnect-token \
-  --from-literal=token="kpat_..."
+kubectl -n kong create secret generic konnect-api-auth \
+  --from-literal=token="kpat_..." \
+  --dry-run=client -o yaml | \
+  kubectl label -f- --local --dry-run=client -o yaml \
+    konghq.com/credential=konnect konghq.com/secret=true | \
+  kubectl apply -f -
 ```
+
+The secret requires:
+- Name: `konnect-api-auth` (referenced by KonnectAPIAuthConfiguration)
+- Label: `konghq.com/credential=konnect` (required for operator discovery)
+- Label: `konghq.com/secret="true"` (required for operator discovery)
 
 Production: replace this with an `ExternalSecret` from your cloud's Secret
 Manager / Vault. Not committed to this repo.
@@ -75,9 +91,13 @@ kubectl apply -f argocd/app-platform.yaml -f argocd/app-httpbin.yaml
 ```
 
 Argo CD will now pull from `https://github.com/debugnin/kong-cicd-demo@main`
-and create the Konnect control plane, gateway, route, and plugins. The Kong
-Gateway Operator reconciles them; the Konnect CP `kong-cicd-demo` appears in
-the AU region's Konnect UI.
+and sync the manifests. The Kong Gateway Operator reconciles the `Gateway`
+resource, which auto-creates:
+- `KonnectGatewayControlPlane` (creates a CP in Konnect AU region)
+- `KonnectExtension` (wires DataPlane to CP)
+- `DataPlane` pods (via ownerReferences)
+
+All resources are owned by the Gateway and managed via ownerReferences.
 
 ## Day-2 operation
 
@@ -87,7 +107,10 @@ the AU region's Konnect UI.
 2. PR CI runs `pr.yaml` (kubeconform + kustomize + conftest).
 3. After approval and merge, Argo CD picks up the change on its next reconcile
    (default 3 min, or trigger immediately via Argo's webhook).
-4. KIC propagates the change to Konnect; the data plane picks it up.
+4. Config propagates to Konnect; the data plane picks it up.
+
+**Note**: HTTPRoute requires Kong Ingress Controller for translation in Konnect
+hybrid mode. Alternatively, use Kong-native CRDs (KongService/KongRoute).
 
 ### Adding a new app team
 
@@ -118,31 +141,62 @@ checks.
 
 ## Debugging
 
-### `KonnectGatewayControlPlane` stuck
+### `KonnectGatewayControlPlane` stuck (or Gateway not creating it)
 
 ```bash
-kubectl -n kong describe konnectgatewaycontrolplane kong-cicd-demo
-kubectl -n kong logs -l app.kubernetes.io/name=gateway-operator --tail=200
+# Check if Gateway created the control plane
+kubectl -n kong get konnectgatewaycontrolplane
+kubectl -n kong get gateway kong -o yaml | grep -A20 status
+
+# Check operator logs
+kubectl -n kong-system logs -l app.kubernetes.io/name=gateway-operator --tail=200
 ```
 
 Most common causes:
-- `konnect-token` Secret missing or contains a stale token
+- `konnect-api-auth` Secret missing, lacks required labels, or contains a stale token
+- Secret labels missing: `konghq.com/credential=konnect` and `konghq.com/secret=true`
 - `KonnectAPIAuthConfiguration.serverURL` doesn't match the region your token
-  belongs to
+  belongs to (should be `https://au.api.konghq.com` for AU region)
 - Token lacks `Control Planes: Admin` Konnect role
+- `GatewayConfiguration.spec.konnect.authRef` not pointing to correct
+  KonnectAPIAuthConfiguration
 
 ### Gateway never reaches `Programmed=True`
 
 ```bash
 kubectl -n kong describe gateway kong
-kubectl -n kong get dataplane,controlplane -o wide
+kubectl -n kong get konnectgatewaycontrolplane,konnectextension,dataplane -o wide
 ```
 
 Likely causes:
-- `KonnectGatewayControlPlane` not yet `Programmed` → wait
-- `KonnectExtension` references a CP name that doesn't match the
-  `KonnectGatewayControlPlane.metadata.name`
-- Operator version too old (no `KonnectGatewayControlPlane` CRD) — upgrade
+- `KonnectGatewayControlPlane` not yet `Programmed` → wait for Konnect API
+- `GatewayConfiguration.spec.konnect.authRef` misconfigured
+- Gateway auto-creation failed — check `kubectl get events -n kong`
+- Operator version too old — upgrade to ≥2.1
+
+### Routes not visible in Konnect
+
+```bash
+# Check HTTPRoute status
+kubectl get httproute -A
+kubectl describe httproute httpbin -n httpbin
+
+# Check operator logs for translation
+kubectl -n kong-system logs -l app.kubernetes.io/name=gateway-operator --tail=200 | grep httproute
+
+# Check if KIC is deployed (required for HTTPRoute translation in Konnect mode)
+kubectl get pods -n kong | grep ingress-controller
+```
+
+Common causes:
+- HTTPRoute requires Kong Ingress Controller for translation in Konnect hybrid mode
+- Operator logs show "No supported parent references found, skipping translation"
+- `GatewayConfiguration.spec.konnect.source: Origin` expects config from Konnect, not Gateway API
+
+Solutions:
+- Deploy Kong Ingress Controller to translate HTTPRoute
+- Switch to Kong-native CRDs (KongService/KongRoute)
+- Change `konnect.source` to `Gateway` instead of `Origin`
 
 ### Argo CD application stuck `OutOfSync`
 
