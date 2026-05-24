@@ -1,0 +1,53 @@
+ingressController:
+  enabled: false
+
+image:
+  repository: kong/kong-gateway
+  tag: "3.14"
+
+env:
+  role: data_plane
+  database: "off"
+  konnect_mode: "on"
+  vitals: "off"
+  cluster_mtls: pki
+
+  cluster_control_plane: "38566c89ae.au.cp.konghq.com"
+  cluster_telemetry_endpoint: "38566c89ae.au.tp.konghq.com:443"
+  cluster_telemetry_server_name: "38566c89ae.au.tp.konghq.com"
+
+  # HashiCorp Vault
+  vaults: hcv
+  vault_hcv_protocol: http
+  vault_hcv_host: vault.vault.svc.cluster.local
+  vault_hcv_port: 8200
+  vault_hcv_mount: secret
+  vault_hcv_kv: v2
+  vault_hcv_token:
+    valueFrom:
+      secretKeyRef:
+        name: kong-vault-token
+        key: token
+
+  # Konnect mTLS
+  cluster_cert: "{vault://hcv/kong/dp/cluster-cert/tls.crt}"
+  cluster_cert_key: "{vault://hcv/kong/dp/cluster-cert/tls.key}"
+
+  lua_ssl_trusted_certificate: system
+  tls_certificate_verify: "off"
+  proxy_access_log: "off"
+  dns_stale_ttl: "3600"
+
+resources:
+  requests:
+    cpu: 1
+    memory: "2Gi"
+
+proxy:
+  enabled: true
+
+admin:
+  enabled: false
+
+manager:
+  enabled: false

@@ -1,0 +1,75 @@
+# Service name pinned to "otel-collector" so the cross-namespace FQDN is
+# stable: otel-collector.observability.svc.cluster.local:4318. Matches the
+# endpoint in konnect_gateway_plugin_opentelemetry.platform_opentelemetry_plugin.
+fullnameOverride: otel-collector
+
+mode: deployment
+
+# contrib has the broader receiver / exporter set; switch to the upstream
+# distribution if you don't need any of the extras.
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+# Resource/capability footprint kept tiny — sandbox values, not production.
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Single-replica Deployment is fine for a kind cluster.
+replicaCount: 1
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+  metrics:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-compact:
+    enabled: false
+  zipkin:
+    enabled: false
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch: {}
+  exporters:
+    # debug exporter writes incoming telemetry to stdout — view with:
+    #   kubectl -n <ns> logs -l app.kubernetes.io/name=opentelemetry-collector -f
+    debug:
+      verbosity: detailed
+  service:
+    pipelines:
+      traces:
+        receivers:  [otlp]
+        processors: [batch]
+        exporters:  [debug]
+      logs:
+        receivers:  [otlp]
+        processors: [batch]
+        exporters:  [debug]
+      metrics:
+        receivers:  [otlp]
+        processors: [batch]
+        exporters:  [debug]
