@@ -27,5 +27,16 @@ spec:
         duration: 10s
         factor: 2
         maxDuration: 2m
+  # Gateway API admission populates these defaults (group/kind/weight) on
+  # HTTPRoute. Without ignoring them, the route is perpetually OutOfSync.
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .spec.parentRefs[].group
+        - .spec.parentRefs[].kind
+        - .spec.rules[].backendRefs[].group
+        - .spec.rules[].backendRefs[].kind
+        - .spec.rules[].backendRefs[].weight
   # To enable Layer 3 (impersonation), uncomment after applying argocd/rbac/:
   # destinationServiceAccount: httpbin-deployer

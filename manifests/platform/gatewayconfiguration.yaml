@@ -4,13 +4,9 @@ metadata:
   name: kong-configuration
   namespace: kong
 spec:
-  # KonnectExtension is attached at the GatewayConfiguration top level
-  # (v2beta1); under spec.dataPlaneOptions.extensions the webhook rejects
-  # it with "KonnectExtension must be set at the Gateway level".
-  extensions:
-    - kind: KonnectExtension
-      group: konnect.konghq.com
-      name: konnect-extension
+  konnect:
+    authRef:
+      name: konnect-api-auth
   dataPlaneOptions:
     # Service defaults to LoadBalancer — works on EKS/GKE/AKS out of the box.
     # For a local kind cluster, override this overlay to switch to NodePort
