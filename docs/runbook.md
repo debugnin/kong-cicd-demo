@@ -6,14 +6,14 @@ Konnect token Secret are all managed outside.
 
 ## Prerequisites
 
-| Component | Where | Version |
-|---|---|---|
-| Kubernetes cluster | Provided by you | ≥ 1.30 |
-| Kong Operator (chart `kong/kong-operator`) | Installed in the cluster | ≥ 2.1 |
-| Gateway API CRDs | Installed in the cluster | ≥ v1.4.1 |
-| Argo CD | Installed in the cluster | ≥ v3.4 (chart ≥ 9.5) |
-| Konnect account | AU region | — |
-| `KONNECT_TOKEN` | PAT or service-account token with CP create/delete |  |
+| Component                                  | Where                                              | Version              |
+| ------------------------------------------ | -------------------------------------------------- | -------------------- |
+| Kubernetes cluster                         | Provided by you                                    | ≥ 1.30               |
+| Kong Operator (chart `kong/kong-operator`) | Installed in the cluster                           | ≥ 2.1                |
+| Gateway API CRDs                           | Installed in the cluster                           | ≥ v1.4.1             |
+| Argo CD                                    | Installed in the cluster                           | ≥ v3.4 (chart ≥ 9.5) |
+| Konnect account                            | AU region                                          | —                    |
+| `KONNECT_TOKEN`                            | PAT or service-account token with CP create/delete |                      |
 
 ## One-time setup (do this once per cluster)
 
@@ -43,6 +43,7 @@ The script installs the Gateway API CRDs (`v1.4.1`, server-side apply) and the
 `KonnectAPIAuthConfiguration` CRs.
 
 Optionally create the Konnect secret during install:
+
 ```bash
 ./helm/deploy-kong-operator.sh --konnect-token "kpat_..."
 ```
@@ -75,6 +76,7 @@ kubectl -n kong create secret generic konnect-api-auth \
 ```
 
 The secret requires:
+
 - Name: `konnect-api-auth` (referenced by KonnectAPIAuthConfiguration)
 - Label: `konghq.com/credential=konnect` (required for operator discovery)
 - Label: `konghq.com/secret="true"` (required for operator discovery)
@@ -93,6 +95,7 @@ kubectl apply -f argocd/app-platform.yaml -f argocd/app-httpbin.yaml
 Argo CD will now pull from `https://github.com/debugnin/kong-cicd-demo@main`
 and sync the manifests. The Kong Gateway Operator reconciles the `Gateway`
 resource, which auto-creates:
+
 - `KonnectGatewayControlPlane` (creates a CP in Konnect AU region)
 - `KonnectExtension` (wires DataPlane to CP)
 - `DataPlane` pods (via ownerReferences)
@@ -153,6 +156,7 @@ kubectl -n kong-system logs -l app.kubernetes.io/name=gateway-operator --tail=20
 ```
 
 Most common causes:
+
 - `konnect-api-auth` Secret missing, lacks required labels, or contains a stale token
 - Secret labels missing: `konghq.com/credential=konnect` and `konghq.com/secret=true`
 - `KonnectAPIAuthConfiguration.serverURL` doesn't match the region your token
@@ -169,6 +173,7 @@ kubectl -n kong get konnectgatewaycontrolplane,konnectextension,dataplane -o wid
 ```
 
 Likely causes:
+
 - `KonnectGatewayControlPlane` not yet `Programmed` → wait for Konnect API
 - `GatewayConfiguration.spec.konnect.authRef` misconfigured
 - Gateway auto-creation failed — check `kubectl get events -n kong`
@@ -189,11 +194,13 @@ kubectl get pods -n kong | grep ingress-controller
 ```
 
 Common causes:
+
 - HTTPRoute requires Kong Ingress Controller for translation in Konnect hybrid mode
 - Operator logs show "No supported parent references found, skipping translation"
 - `GatewayConfiguration.spec.konnect.source: Origin` expects config from Konnect, not Gateway API
 
 Solutions:
+
 - Deploy Kong Ingress Controller to translate HTTPRoute
 - Switch to Kong-native CRDs (KongService/KongRoute)
 - Change `konnect.source` to `Gateway` instead of `Origin`

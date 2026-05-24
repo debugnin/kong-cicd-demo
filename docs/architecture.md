@@ -13,24 +13,24 @@ them, talking to Konnect via the Konnect API.
 
 ## What lives where
 
-| Concern | Where | Notes |
-|---|---|---|
-| Kubernetes cluster | External | Any conformant cluster (kind, EKS, AKS, GKE, on-prem) |
-| Kong Operator | External | Installed via Helm; required CRDs come with it |
-| Argo CD | External | Use `./helm/deploy-argocd.sh` for a one-line install |
-| Konnect token (Secret) | External | Created out-of-band; `KonnectAPIAuthConfiguration` references it |
-| Konnect control plane | **This repo** | Auto-created by `Gateway` via `KonnectGatewayControlPlane` |
-| Gateway + data plane wiring | **This repo** | `Gateway`, `GatewayClass`, `GatewayConfiguration` (auto-creates DataPlane, KonnectExtension) |
-| HTTPRoutes, plugins, consumers | **This repo** | App tier under `manifests/apps/<app>/` |
-| Argo CD `AppProject`s, `Application`s | **This repo** | Defines what Argo CD syncs and where |
-| Conftest policies | **This repo** | Enforced in PR CI |
+| Concern                               | Where         | Notes                                                                                        |
+| ------------------------------------- | ------------- | -------------------------------------------------------------------------------------------- |
+| Kubernetes cluster                    | External      | Any conformant cluster (kind, EKS, AKS, GKE, on-prem)                                        |
+| Kong Operator                         | External      | Installed via Helm; required CRDs come with it                                               |
+| Argo CD                               | External      | Use `./helm/deploy-argocd.sh` for a one-line install                                         |
+| Konnect token (Secret)                | External      | Created out-of-band; `KonnectAPIAuthConfiguration` references it                             |
+| Konnect control plane                 | **This repo** | Auto-created by `Gateway` via `KonnectGatewayControlPlane`                                   |
+| Gateway + data plane wiring           | **This repo** | `Gateway`, `GatewayClass`, `GatewayConfiguration` (auto-creates DataPlane, KonnectExtension) |
+| HTTPRoutes, plugins, consumers        | **This repo** | App tier under `manifests/apps/<app>/`                                                       |
+| Argo CD `AppProject`s, `Application`s | **This repo** | Defines what Argo CD syncs and where                                                         |
+| Conftest policies                     | **This repo** | Enforced in PR CI                                                                            |
 
 ## Two-tier ownership model
 
-| Tier | Path | Owner | Argo `Application` |
-|---|---|---|---|
-| Platform | `manifests/platform/` | Platform team | `platform` |
-| App | `manifests/apps/httpbin/` | App-team-a | `httpbin` |
+| Tier     | Path                      | Owner         | Argo `Application` |
+| -------- | ------------------------- | ------------- | ------------------ |
+| Platform | `manifests/platform/`     | Platform team | `platform`         |
+| App      | `manifests/apps/httpbin/` | App-team-a    | `httpbin`          |
 
 The platform team owns the gateway itself (the `Gateway` resource, the
 `GatewayClass`, the Konnect wiring, the Konnect control plane CR). App teams
@@ -43,11 +43,11 @@ operate Kong at scale.
 A single repo can't enforce ownership purely through repo permissions. Three
 layered controls together approximate what separate repos give you for free.
 
-| Layer | When | Mechanism | Enforces |
-|---|---|---|---|
-| 1. PR-time | Before merge | `.github/CODEOWNERS` + branch protection | Human review by the correct owner |
-| 2. Sync-time | Argo CD reconcile | `Application.source.path` + `AppProject` whitelists | Each Application can only deploy its path's resources |
-| 3. Apply-time | Kubernetes API server | (Optional) Application impersonation via per-tier `ServiceAccount` | API server refuses out-of-scope writes |
+| Layer         | When                  | Mechanism                                                          | Enforces                                              |
+| ------------- | --------------------- | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| 1. PR-time    | Before merge          | `.github/CODEOWNERS` + branch protection                           | Human review by the correct owner                     |
+| 2. Sync-time  | Argo CD reconcile     | `Application.source.path` + `AppProject` whitelists                | Each Application can only deploy its path's resources |
+| 3. Apply-time | Kubernetes API server | (Optional) Application impersonation via per-tier `ServiceAccount` | API server refuses out-of-scope writes                |
 
 Layer 3 is off by default. See `argocd/rbac/README.md` to turn it on.
 
@@ -118,11 +118,11 @@ No Terraform. No in-repo cluster bootstrap. No in-CI cluster manipulation.
 Only one workflow: `.github/workflows/pr.yaml`. It validates manifests at PR
 time and is the **only** check this repo enforces in CI.
 
-| Job | Tool | Purpose |
-|---|---|---|
-| `schema` | kubeconform | Schema-check manifests against upstream + CRDs-catalog schemas |
-| `render` | kustomize | `kustomize build` each tier; fails on overlay errors |
-| `policy` | conftest | Enforces `policies/kong.rego` rules (wildcard hosts, missing timeouts, plugin allowlist) |
+| Job      | Tool        | Purpose                                                                                  |
+| -------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `schema` | kubeconform | Schema-check manifests against upstream + CRDs-catalog schemas                           |
+| `render` | kustomize   | `kustomize build` each tier; fails on overlay errors                                     |
+| `policy` | conftest    | Enforces `policies/kong.rego` rules (wildcard hosts, missing timeouts, plugin allowlist) |
 
 There is **no** `main` workflow. Deployment is implicit: a merge to `main`
 becomes the new revision Argo CD pulls. Argo CD's reconcile loop (default 3
@@ -132,6 +132,7 @@ min, or webhook-triggered) does the apply.
 
 The `KonnectAPIAuthConfiguration` references a `Secret` named `konnect-api-auth`
 in the `kong` namespace, with key `token`. The secret requires labels:
+
 - `konghq.com/credential: konnect`
 - `konghq.com/secret: "true"`
 
@@ -152,17 +153,17 @@ reconciled.
 
 ## Non-goals (deliberately excluded)
 
-| Not in repo | Production answer |
-|---|---|
-| Cluster creation | External — Terraform/CF/whatever creates the cluster |
-| Kong Operator install | External — see `./helm/deploy-kong-operator.sh` |
-| Argo CD install | External — see `./helm/deploy-argocd.sh` |
-| Konnect token provisioning | External — ESO + cloud Secret Manager in prod |
+| Not in repo                       | Production answer                                       |
+| --------------------------------- | ------------------------------------------------------- |
+| Cluster creation                  | External — Terraform/CF/whatever creates the cluster    |
+| Kong Operator install             | External — see `./helm/deploy-kong-operator.sh`         |
+| Argo CD install                   | External — see `./helm/deploy-argocd.sh`                |
+| Konnect token provisioning        | External — ESO + cloud Secret Manager in prod           |
 | Multi-env overlays (dev/stg/prod) | Add `manifests/platform/envs/*` and an `ApplicationSet` |
-| Drift detection | `deck gateway dump` cron in a separate ops repo |
-| Argo CD Notifications | Configure in the Argo CD install, not here |
-| Promotion automation | Kargo, or PR-bot that bumps `targetRevision` per env |
-| TLS / HTTPS listener | Add TLS listener to `Gateway` + cert-manager |
+| Drift detection                   | `deck gateway dump` cron in a separate ops repo         |
+| Argo CD Notifications             | Configure in the Argo CD install, not here              |
+| Promotion automation              | Kargo, or PR-bot that bumps `targetRevision` per env    |
+| TLS / HTTPS listener              | Add TLS listener to `Gateway` + cert-manager            |
 
 ## File map
 
