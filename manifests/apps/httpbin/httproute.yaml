@@ -3,10 +3,6 @@ kind: HTTPRoute
 metadata:
   name: httpbin
   namespace: httpbin
-  annotations:
-    # Bind plugins to this route. KIC reads this annotation and applies the
-    # named KongPlugins (in the same namespace) to every rule in this route.
-    konghq.com/plugins: rate-limit-status,key-auth-headers
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -23,6 +19,12 @@ spec:
           port: 80
       timeouts:
         request: 10s
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: configuration.konghq.com
+            kind: KongPlugin
+            name: key-auth-headers
     - matches:
         - path:
             type: PathPrefix
