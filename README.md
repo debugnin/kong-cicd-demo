@@ -13,6 +13,7 @@ provisioned **outside this repo** (using scripts in `./helm/`).
 ## Quickstart
 
 1. Fork this repo. Replace `debugnin` with your GitHub org/user:
+
    ```bash
    grep -rl 'debugnin' . | xargs sed -i '' "s|debugnin|your-gh-org|g"
    ```
@@ -23,10 +24,11 @@ provisioned **outside this repo** (using scripts in `./helm/`).
    - Gateway API CRDs
 
 3. Create the Konnect token Secret (or use the operator script):
+
    ```bash
    # Option 1: Use the operator deployment script with token
    ./helm/deploy-kong-operator.sh --konnect-token "kpat_..."
-   
+
    # Option 2: Create manually
    kubectl create namespace kong
    kubectl -n kong create secret generic konnect-api-auth \
@@ -38,6 +40,7 @@ provisioned **outside this repo** (using scripts in `./helm/`).
    ```
 
 4. Apply Argo CD configs:
+
    ```bash
    kubectl apply -f argocd/projects/
    kubectl apply -f argocd/app-platform.yaml -f argocd/app-httpbin.yaml
@@ -62,12 +65,12 @@ docs/            Architecture + runbook
 
 ## What's NOT in here
 
-| Externalised | Where it lives |
-|---|---|
-| Kubernetes cluster | Provided by you |
-| Kong Operator install | `./helm/deploy-kong-operator.sh` |
-| Argo CD install | `./helm/deploy-argocd.sh` |
-| Konnect token Secret | `./helm/deploy-kong-operator.sh --konnect-token` or `kubectl create secret` |
+| Externalised          | Where it lives                                                              |
+| --------------------- | --------------------------------------------------------------------------- |
+| Kubernetes cluster    | Provided by you                                                             |
+| Kong Operator install | `./helm/deploy-kong-operator.sh`                                            |
+| Argo CD install       | `./helm/deploy-argocd.sh`                                                   |
+| Konnect token Secret  | `./helm/deploy-kong-operator.sh --konnect-token` or `kubectl create secret` |
 
 See [`docs/architecture.md`](docs/architecture.md) for the full picture and
 [`docs/runbook.md`](docs/runbook.md) for operating instructions.
@@ -76,10 +79,10 @@ See [`docs/architecture.md`](docs/architecture.md) for the full picture and
 
 One workflow, [`.github/workflows/pr.yaml`](.github/workflows/pr.yaml):
 
-| Job | Tool | Catches |
-|---|---|---|
-| `schema` | kubeconform | Bad fields/types in manifests |
-| `render` | kustomize | Overlay errors |
-| `policy` | conftest | Wildcard hosts, missing timeouts, non-allowlisted plugins |
+| Job      | Tool        | Catches                                                   |
+| -------- | ----------- | --------------------------------------------------------- |
+| `schema` | kubeconform | Bad fields/types in manifests                             |
+| `render` | kustomize   | Overlay errors                                            |
+| `policy` | conftest    | Wildcard hosts, missing timeouts, non-allowlisted plugins |
 
 No `main` workflow. Deployment is GitOps — merge to `main`, Argo CD pulls.
