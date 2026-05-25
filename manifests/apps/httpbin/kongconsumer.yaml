@@ -2,9 +2,7 @@ apiVersion: configuration.konghq.com/v1
 kind: KongConsumer
 metadata:
   name: demo-user
-  namespace: httpbin
-  annotations:
-    kubernetes.io/ingress.class: kong
+  namespace: kong
 username: demo-user
 credentials:
   - demo-user-keyauth
