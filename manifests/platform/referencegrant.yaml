@@ -1,17 +1,3 @@
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: kong-cp-to-httpbin
-  namespace: kong
-spec:
-  from:
-    - group: configuration.konghq.com
-      kind: KongConsumer
-      namespace: httpbin
-  to:
-    - group: konnect.konghq.com
-      kind: KonnectGatewayControlPlane
----
 apiVersion: configuration.konghq.com/v1alpha1
 kind: KongReferenceGrant
 metadata:
