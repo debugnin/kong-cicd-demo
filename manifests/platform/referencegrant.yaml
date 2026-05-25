@@ -5,9 +5,24 @@ metadata:
   namespace: kong
 spec:
   from:
-  - group: configuration.konghq.com
-    kind: KongConsumer
-    namespace: httpbin
+    - group: configuration.konghq.com
+      kind: KongConsumer
+      namespace: httpbin
   to:
-  - group: konnect.konghq.com
-    kind: KonnectGatewayControlPlane
+    - group: konnect.konghq.com
+      kind: KonnectGatewayControlPlane
+---
+apiVersion: configuration.konghq.com/v1alpha1
+kind: KongReferenceGrant
+metadata:
+  name: kong-cp-to-httpbin
+  namespace: kong
+spec:
+  from:
+    - group: configuration.konghq.com
+      kind: KongConsumer
+      namespace: httpbin
+  to:
+    - group: konnect.konghq.com
+      kind: KonnectGatewayControlPlane
+      name: kong
