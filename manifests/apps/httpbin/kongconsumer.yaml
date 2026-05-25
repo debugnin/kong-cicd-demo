@@ -2,7 +2,7 @@ apiVersion: configuration.konghq.com/v1
 kind: KongConsumer
 metadata:
   name: demo-user
-  namespace: kong
+  namespace: httpbin
 username: demo-user
 credentials:
   - demo-user-keyauth

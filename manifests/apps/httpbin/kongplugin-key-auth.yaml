@@ -2,7 +2,7 @@ apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
   name: key-auth-headers
-  namespace: kong
+  namespace: httpbin
 plugin: key-auth
 config:
   key_names:
