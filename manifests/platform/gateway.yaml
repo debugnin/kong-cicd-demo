@@ -3,6 +3,8 @@ kind: Gateway
 metadata:
   name: kong
   namespace: kong
+  annotations:
+    gateway-operator.konghq.com/static-naming: "true"
 spec:
   gatewayClassName: kong
   listeners:
