@@ -4,8 +4,6 @@ metadata:
   name: demo-user
   namespace: httpbin
 username: demo-user
-credentials:
-  - demo-user-keyauth
 spec:
   controlPlaneRef:
     type: konnectNamespacedRef

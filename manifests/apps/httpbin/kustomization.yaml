@@ -9,4 +9,4 @@ resources:
   - kongplugin-rate-limit.yaml
   - kongplugin-key-auth.yaml
   - kongconsumer.yaml
-  - kongconsumer-credentials.yaml
+  - kongcredential-apikey.yaml
