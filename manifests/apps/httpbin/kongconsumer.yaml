@@ -8,3 +8,9 @@ metadata:
 username: demo-user
 credentials:
   - demo-user-keyauth
+spec:
+  controlPlaneRef:
+    type: konnectNamespacedRef
+    konnectNamespacedRef:
+      name: kong
+      namespace: kong
